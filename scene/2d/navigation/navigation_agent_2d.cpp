@@ -38,6 +38,19 @@
 void NavigationAgent2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_rid"), &NavigationAgent2D::get_rid);
 
+ClassDB::bind_method(D_METHOD("set_max_speed", "speed"), &NavigationAgent2D::set_max_speed);
+	ClassDB::bind_method(D_METHOD("get_max_speed"), &NavigationAgent2D::get_max_speed);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed"), "set_max_speed", "get_max_speed");
+
+ClassDB::bind_method(D_METHOD("set_target_player_path", "path"), &NavigationAgent2D::set_target_player_path);
+ClassDB::bind_method(D_METHOD("get_target_player_path"), &NavigationAgent2D::get_target_player_path);
+
+ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "target_player_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CharacterBody2D"), "set_target_player_path", "get_target_player_path");
+
+	ClassDB::bind_method(D_METHOD("set_target_player", "player"), &NavigationAgent2D::set_target_player);
+	ClassDB::bind_method(D_METHOD("get_target_player"), &NavigationAgent2D::get_target_player);
+
+
 	ClassDB::bind_method(D_METHOD("set_avoidance_enabled", "enabled"), &NavigationAgent2D::set_avoidance_enabled);
 	ClassDB::bind_method(D_METHOD("get_avoidance_enabled"), &NavigationAgent2D::get_avoidance_enabled);
 
@@ -226,6 +239,13 @@ bool NavigationAgent2D::_get(const StringName &p_name, Variant &r_ret) const {
 void NavigationAgent2D::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_POST_ENTER_TREE: {
+			set_agent_parent(get_parent());
+	set_physics_process_internal(true);
+
+	if (target_player_path != NodePath()) {
+		Node *node = get_node_or_null(target_player_path);
+		target_player = Object::cast_to<CharacterBody2D>(node);
+	}
 			// need to use POST_ENTER_TREE cause with normal ENTER_TREE not all required Nodes are ready.
 			// cannot use READY as ready does not get called if Node is re-added to SceneTree
 			set_agent_parent(get_parent());
@@ -271,6 +291,8 @@ void NavigationAgent2D::_notification(int p_what) {
 #endif // DEBUG_ENABLED
 		} break;
 
+		
+
 		case NOTIFICATION_SUSPENDED:
 		case NOTIFICATION_PAUSED: {
 			if (agent_parent) {
@@ -292,8 +314,43 @@ void NavigationAgent2D::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
+last_delta = get_physics_process_delta_time();
+			if (Engine::get_singleton()->is_editor_hint()) {
+	break; // Skip this logic in editor
+}
 			if (agent_parent && avoidance_enabled) {
 				NavigationServer2D::get_singleton()->agent_set_position(agent, agent_parent->get_global_position());
+			}
+			Vector2 to_target = target_player->get_global_position() - agent_parent->get_global_position();
+			if (target_player && agent_parent ) {
+				Vector2 to_target = target_player->get_global_position() - agent_parent->get_global_position();
+				print_line("Distance: " + rtos(to_target.length()) + ", Max Allowed: " + rtos(path_max_distance));
+				if (to_target.length() <= path_max_distance && (to_target.length()> target_desired_distance)) {
+					print_line("Target accepted");
+					set_target_position(target_player->get_global_position());
+					debug_path_dirty = true;
+				} else {
+					print_line("Target too far. Stopping navigation.");
+
+					// Clear internal navigation path
+					navigation_result->set_path(Vector<Vector2>());
+					debug_path_dirty = true;
+
+					// Reset path navigation state
+					navigation_path_index = 0;
+					target_position_submitted = false;
+					navigation_finished = true;
+					target_reached = false;
+					last_waypoint_reached = true;
+
+					// Stop movement
+					velocity = Vector2();
+					safe_velocity = Vector2();
+
+					#ifdef DEBUG_ENABLED
+						debug_path_dirty = true;
+					#endif
+				}
 			}
 			if (agent_parent && target_position_submitted) {
 				if (velocity_submitted) {
@@ -314,6 +371,11 @@ void NavigationAgent2D::_notification(int p_what) {
 				_update_debug_path();
 			}
 #endif // DEBUG_ENABLED
+
+if (!Engine::get_singleton()->is_editor_hint()) {
+	_move_parent_character(last_delta);
+}
+
 		} break;
 	}
 }
@@ -360,6 +422,34 @@ NavigationAgent2D::~NavigationAgent2D() {
 		RenderingServer::get_singleton()->free(debug_path_instance);
 	}
 #endif // DEBUG_ENABLED
+}
+
+void NavigationAgent2D::set_max_speed(float p_speed) {
+	max_speed = p_speed;
+}
+
+float NavigationAgent2D::get_max_speed() const {
+	return max_speed;
+}
+
+void NavigationAgent2D::set_target_player(CharacterBody2D *p_target) {
+	target_player = p_target;
+}
+
+CharacterBody2D *NavigationAgent2D::get_target_player() const {
+	return target_player;
+}
+
+void NavigationAgent2D::set_target_player_path(const NodePath &p_path) {
+	target_player_path = p_path;
+	if (is_inside_tree()) {
+		Node *node = get_node_or_null(p_path);
+		target_player = Object::cast_to<CharacterBody2D>(node);
+	}
+}
+
+NodePath NavigationAgent2D::get_target_player_path() const {
+	return target_player_path;
 }
 
 void NavigationAgent2D::set_avoidance_enabled(bool p_enabled) {
@@ -616,15 +706,7 @@ void NavigationAgent2D::set_time_horizon_obstacles(real_t p_time_horizon) {
 	NavigationServer2D::get_singleton()->agent_set_time_horizon_obstacles(agent, time_horizon_obstacles);
 }
 
-void NavigationAgent2D::set_max_speed(real_t p_max_speed) {
-	ERR_FAIL_COND_MSG(p_max_speed < 0.0, "Max speed must be positive.");
-	if (Math::is_equal_approx(max_speed, p_max_speed)) {
-		return;
-	}
-	max_speed = p_max_speed;
 
-	NavigationServer2D::get_singleton()->agent_set_max_speed(agent, max_speed);
-}
 
 void NavigationAgent2D::set_path_max_distance(real_t p_path_max_distance) {
 	if (Math::is_equal_approx(path_max_distance, p_path_max_distance)) {
@@ -639,13 +721,39 @@ real_t NavigationAgent2D::get_path_max_distance() {
 }
 
 void NavigationAgent2D::set_target_position(Vector2 p_position) {
-	// Intentionally not checking for equality of the parameter, as we want to update the path even if the target position is the same in case the world changed.
-	// Revisit later when the navigation server can update the path without requesting a new path.
-
 	target_position = p_position;
 	target_position_submitted = true;
+	navigation_finished = false;
+	target_reached = false;
+	last_waypoint_reached = false;
 
-	_request_repath();
+	if (!navigation_query.is_valid()) {
+		navigation_query.instantiate();
+	}
+	if (!navigation_result.is_valid()) {
+		navigation_result.instantiate();
+	}
+
+	navigation_query->set_start_position(agent_parent->get_global_position());
+	navigation_query->set_target_position(target_position);
+	navigation_query->set_navigation_layers(navigation_layers);
+	navigation_query->set_pathfinding_algorithm(pathfinding_algorithm);
+	navigation_query->set_path_postprocessing(path_postprocessing);
+	navigation_query->set_metadata_flags(path_metadata_flags);
+	navigation_query->set_map(get_navigation_map()); // ✅ use your class's method
+
+	NavigationServer2D::get_singleton()->query_path(navigation_query, navigation_result); // ✅ pass 2 arguments
+
+	const Vector<Vector2> &path = navigation_result->get_path();
+	if (path.is_empty()) {
+		print_line("Pathfinding failed: result path is empty.");
+		navigation_finished = true;
+	} else {
+		print_line("Path computed with " + itos(path.size()) + " points.");
+		navigation_path_index = 0;
+		last_waypoint_reached = false;
+		target_reached = false;
+	}
 }
 
 Vector2 NavigationAgent2D::get_target_position() const {
@@ -682,10 +790,30 @@ bool NavigationAgent2D::_is_target_reachable() const {
 	return target_desired_distance >= _get_final_position().distance_to(target_position);
 }
 
-bool NavigationAgent2D::is_navigation_finished() {
-	_update_navigation();
+bool NavigationAgent2D::is_navigation_finished() const {
 	return navigation_finished;
 }
+
+void NavigationAgent2D::_move_parent_character(float delta) {
+	if (!agent_parent || !Object::cast_to<CharacterBody2D>(agent_parent)) {
+		return;
+	}
+
+	CharacterBody2D *body = Object::cast_to<CharacterBody2D>(agent_parent);
+	if (is_navigation_finished() || get_current_navigation_path().is_empty()) {
+		body->set_velocity(Vector2());
+		body->move_and_slide();
+		return;
+	}
+
+	Vector2 next_point = get_next_path_position();
+	Vector2 direction = (next_point - body->get_global_position()).normalized();
+	Vector2 move_velocity = direction * max_speed;
+
+	body->set_velocity(move_velocity);
+	body->move_and_slide();
+}
+
 
 Vector2 NavigationAgent2D::get_final_position() {
 	_update_navigation();
@@ -730,6 +858,9 @@ PackedStringArray NavigationAgent2D::get_configuration_warnings() const {
 }
 
 void NavigationAgent2D::_update_navigation() {
+	if (target_player != nullptr) {
+		set_target_position(target_player->get_global_position());
+	}
 	if (agent_parent == nullptr) {
 		return;
 	}

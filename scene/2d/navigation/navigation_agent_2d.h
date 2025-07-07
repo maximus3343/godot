@@ -34,12 +34,14 @@
 #include "servers/navigation/navigation_globals.h"
 #include "servers/navigation/navigation_path_query_parameters_2d.h"
 #include "servers/navigation/navigation_path_query_result_2d.h"
+#include "scene/2d/physics/character_body_2d.h"
 
 class Node2D;
 
 class NavigationAgent2D : public Node {
 	GDCLASS(NavigationAgent2D, Node);
 
+	NodePath target_player_path;
 	Node2D *agent_parent = nullptr;
 
 	RID agent;
@@ -61,7 +63,7 @@ class NavigationAgent2D : public Node {
 	int max_neighbors = NavigationDefaults2D::AVOIDANCE_AGENT_MAX_NEIGHBORS;
 	real_t time_horizon_agents = NavigationDefaults2D::AVOIDANCE_AGENT_TIME_HORIZON_AGENTS;
 	real_t time_horizon_obstacles = NavigationDefaults2D::AVOIDANCE_AGENT_TIME_HORIZON_OBSTACLES;
-	real_t max_speed = NavigationDefaults2D::AVOIDANCE_AGENT_MAX_SPEED;
+	
 	real_t path_max_distance = 100.0;
 	bool simplify_path = false;
 	real_t simplify_epsilon = 0.0;
@@ -82,6 +84,7 @@ class NavigationAgent2D : public Node {
 	/// The submitted target velocity, sets the "wanted" rvo agent velocity on the next update
 	// this velocity is not guaranteed, the simulation will try to fulfill it if possible
 	// if other agents or obstacles interfere it will be changed accordingly
+	CharacterBody2D *target_player = nullptr;
 	Vector2 velocity;
 	bool velocity_submitted = false;
 
@@ -124,6 +127,18 @@ public:
 
 	RID get_rid() const { return agent; }
 
+	void set_max_speed(float p_speed);
+	float get_max_speed() const;
+
+	void _move_parent_character(float delta);
+	float last_delta = 0.0f;
+
+	void set_target_player(CharacterBody2D *p_target);
+	CharacterBody2D *get_target_player() const;
+
+	void set_target_player_path(const NodePath &p_path);
+	NodePath get_target_player_path() const;
+
 	void set_avoidance_enabled(bool p_enabled);
 	bool get_avoidance_enabled() const;
 
@@ -162,6 +177,8 @@ public:
 	void set_radius(real_t p_radius);
 	real_t get_radius() const { return radius; }
 
+	
+
 	void set_neighbor_distance(real_t p_distance);
 	real_t get_neighbor_distance() const { return neighbor_distance; }
 
@@ -174,8 +191,7 @@ public:
 	void set_time_horizon_obstacles(real_t p_time_horizon);
 	real_t get_time_horizon_obstacles() const { return time_horizon_obstacles; }
 
-	void set_max_speed(real_t p_max_speed);
-	real_t get_max_speed() const { return max_speed; }
+	
 
 	void set_path_max_distance(real_t p_pmd);
 	real_t get_path_max_distance();
@@ -214,7 +230,7 @@ public:
 	real_t distance_to_target() const;
 	bool is_target_reached() const;
 	bool is_target_reachable();
-	bool is_navigation_finished();
+	bool is_navigation_finished() const;
 	Vector2 get_final_position();
 
 	void set_velocity(const Vector2 p_velocity);
@@ -257,6 +273,8 @@ public:
 	float get_debug_path_custom_line_width() const;
 
 private:
+	
+	float max_speed = 100.0f; // Default speed in pixels/second
 	bool _is_target_reachable() const;
 	Vector2 _get_final_position() const;
 
