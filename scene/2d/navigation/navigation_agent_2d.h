@@ -30,11 +30,11 @@
 
 #pragma once
 
+#include "scene/2d/physics/character_body_2d.h"
 #include "scene/main/node.h"
 #include "servers/navigation/navigation_globals.h"
 #include "servers/navigation/navigation_path_query_parameters_2d.h"
 #include "servers/navigation/navigation_path_query_result_2d.h"
-#include "scene/2d/physics/character_body_2d.h"
 
 class Node2D;
 
@@ -63,8 +63,8 @@ class NavigationAgent2D : public Node {
 	int max_neighbors = NavigationDefaults2D::AVOIDANCE_AGENT_MAX_NEIGHBORS;
 	real_t time_horizon_agents = NavigationDefaults2D::AVOIDANCE_AGENT_TIME_HORIZON_AGENTS;
 	real_t time_horizon_obstacles = NavigationDefaults2D::AVOIDANCE_AGENT_TIME_HORIZON_OBSTACLES;
-	
-	real_t path_max_distance = 100.0;
+
+	real_t path_max_distance = 50.0;
 	bool simplify_path = false;
 	real_t simplify_epsilon = 0.0;
 	float path_return_max_length = 0.0;
@@ -130,7 +130,7 @@ public:
 	void set_max_speed(float p_speed);
 	float get_max_speed() const;
 
-	void _move_parent_character(float delta);
+	void _move_parent_character();
 	float last_delta = 0.0f;
 
 	void set_target_player(CharacterBody2D *p_target);
@@ -177,8 +177,6 @@ public:
 	void set_radius(real_t p_radius);
 	real_t get_radius() const { return radius; }
 
-	
-
 	void set_neighbor_distance(real_t p_distance);
 	real_t get_neighbor_distance() const { return neighbor_distance; }
 
@@ -190,8 +188,6 @@ public:
 
 	void set_time_horizon_obstacles(real_t p_time_horizon);
 	real_t get_time_horizon_obstacles() const { return time_horizon_obstacles; }
-
-	
 
 	void set_path_max_distance(real_t p_pmd);
 	real_t get_path_max_distance();
@@ -273,8 +269,9 @@ public:
 	float get_debug_path_custom_line_width() const;
 
 private:
-	
 	float max_speed = 100.0f; // Default speed in pixels/second
+	Vector2 _default_position;
+	CharacterBody2D _default_body;
 	bool _is_target_reachable() const;
 	Vector2 _get_final_position() const;
 
@@ -290,6 +287,14 @@ private:
 	void _trigger_waypoint_reached();
 	void _transition_to_navigation_finished();
 	void _transition_to_target_reached();
+
+	void _resolve_target_player_node();
+	void _follow_player();
+	// Follows a position at each frame.
+	void _follow_pos(const Vector2 &pos);
+	void _follow_reset();
+	void _set_default_position(const Vector2 &pos);
+	void _set_default_body(Node2D *body);
 
 #ifdef DEBUG_ENABLED
 	void _navigation_debug_changed();
