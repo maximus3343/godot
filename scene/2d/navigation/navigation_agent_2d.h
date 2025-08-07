@@ -130,6 +130,9 @@ public:
 	void set_max_speed(float p_speed);
 	float get_max_speed() const;
 
+	void set_is_debug_path(bool idp);
+	bool get_is_debug_path() const;
+
 	void _move_parent_character();
 	float last_delta = 0.0f;
 
@@ -269,11 +272,12 @@ public:
 	float get_debug_path_custom_line_width() const;
 
 private:
-	float max_speed = 100.0f; // Default speed in pixels/second
+	float max_speed{ 20.0f }; // Default speed in pixels/second
 	Vector2 _default_position;
-	CharacterBody2D _default_body;
+	bool _is_debug_path{ false };
 	bool _is_target_reachable() const;
 	Vector2 _get_final_position() const;
+	void _sync_debug_path();
 
 	void _update_navigation();
 	void _advance_waypoints(const Vector2 &p_origin);

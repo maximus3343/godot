@@ -40,12 +40,15 @@ void NavigationAgent2D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_max_speed", "speed"), &NavigationAgent2D::set_max_speed);
 	ClassDB::bind_method(D_METHOD("get_max_speed"), &NavigationAgent2D::get_max_speed);
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed"), "set_max_speed", "get_max_speed");
+	//ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed"), "set_max_speed", "get_max_speed");
 
 	ClassDB::bind_method(D_METHOD("set_target_player_path", "path"), &NavigationAgent2D::set_target_player_path);
 	ClassDB::bind_method(D_METHOD("get_target_player_path"), &NavigationAgent2D::get_target_player_path);
+	//ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "target_player_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CharacterBody2D"), "set_target_player_path", "get_target_player_path");
 
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "target_player_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CharacterBody2D"), "set_target_player_path", "get_target_player_path");
+	ClassDB::bind_method(D_METHOD("set_is_debug_path", "_is_debug_path"), &NavigationAgent2D::set_is_debug_path);
+	ClassDB::bind_method(D_METHOD("get_is_debug_path"), &NavigationAgent2D::get_is_debug_path);
+	//ADD_PROPERTY(PropertyInfo(Variant::BOOL, "debug_path"), "set_is_debug_path", "get_is_debug_path");
 
 	ClassDB::bind_method(D_METHOD("set_target_player", "player"), &NavigationAgent2D::set_target_player);
 	ClassDB::bind_method(D_METHOD("get_target_player"), &NavigationAgent2D::get_target_player);
@@ -73,9 +76,6 @@ void NavigationAgent2D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_time_horizon_obstacles", "time_horizon"), &NavigationAgent2D::set_time_horizon_obstacles);
 	ClassDB::bind_method(D_METHOD("get_time_horizon_obstacles"), &NavigationAgent2D::get_time_horizon_obstacles);
-
-	ClassDB::bind_method(D_METHOD("set_max_speed", "max_speed"), &NavigationAgent2D::set_max_speed);
-	ClassDB::bind_method(D_METHOD("get_max_speed"), &NavigationAgent2D::get_max_speed);
 
 	ClassDB::bind_method(D_METHOD("set_path_max_distance", "max_speed"), &NavigationAgent2D::set_path_max_distance);
 	ClassDB::bind_method(D_METHOD("get_path_max_distance"), &NavigationAgent2D::get_path_max_distance);
@@ -152,6 +152,11 @@ void NavigationAgent2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_avoidance_priority", "priority"), &NavigationAgent2D::set_avoidance_priority);
 	ClassDB::bind_method(D_METHOD("get_avoidance_priority"), &NavigationAgent2D::get_avoidance_priority);
 
+	ADD_GROUP("Navigation Settings", "");
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "target_player_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CharacterBody2D"), "set_target_player_path", "get_target_player_path");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "debug_path", PROPERTY_HINT_NONE, ""), "set_is_debug_path", "get_is_debug_path");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed", PROPERTY_HINT_RANGE, "0.01,100000,0.01,or_greater,suffix:px/s"), "set_max_speed", "get_max_speed");
+
 	ADD_GROUP("Pathfinding", "");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "target_position", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_target_position", "get_target_position");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "path_desired_distance", PROPERTY_HINT_RANGE, "0.1,1000,0.01,or_greater,suffix:px"), "set_path_desired_distance", "get_path_desired_distance");
@@ -176,7 +181,7 @@ void NavigationAgent2D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_neighbors", PROPERTY_HINT_RANGE, "1,10000,1,or_greater"), "set_max_neighbors", "get_max_neighbors");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "time_horizon_agents", PROPERTY_HINT_RANGE, "0.0,10,0.01,or_greater,suffix:s"), "set_time_horizon_agents", "get_time_horizon_agents");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "time_horizon_obstacles", PROPERTY_HINT_RANGE, "0.0,10,0.01,or_greater,suffix:s"), "set_time_horizon_obstacles", "get_time_horizon_obstacles");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed", PROPERTY_HINT_RANGE, "0.01,100000,0.01,or_greater,suffix:px/s"), "set_max_speed", "get_max_speed");
+	//ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed", PROPERTY_HINT_RANGE, "0.01,100000,0.01,or_greater,suffix:px/s"), "set_max_speed", "get_max_speed");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "avoidance_layers", PROPERTY_HINT_LAYERS_AVOIDANCE), "set_avoidance_layers", "get_avoidance_layers");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "avoidance_mask", PROPERTY_HINT_LAYERS_AVOIDANCE), "set_avoidance_mask", "get_avoidance_mask");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "avoidance_priority", PROPERTY_HINT_RANGE, "0.0,1.0,0.01"), "set_avoidance_priority", "get_avoidance_priority");
@@ -312,11 +317,6 @@ void NavigationAgent2D::_notification(int p_what) {
 				NavigationServer2D::get_singleton()->agent_set_position(agent, agent_parent->get_global_position());
 			}
 
-			// Followed position is target_player.
-			// if (target_player && agent_parent) {
-			// 	const Vector2 pos = target_player->get_global_position();
-			// 	_follow_pos(Vector2(1.0, 1.0));
-			// }
 			_follow_player();
 
 			if (agent_parent && target_position_submitted) {
@@ -397,6 +397,14 @@ void NavigationAgent2D::set_max_speed(float p_speed) {
 
 float NavigationAgent2D::get_max_speed() const {
 	return max_speed;
+}
+
+void NavigationAgent2D::set_is_debug_path(bool idp) {
+	_is_debug_path = idp;
+}
+
+bool NavigationAgent2D::get_is_debug_path() const {
+	return _is_debug_path;
 }
 
 void NavigationAgent2D::set_target_player(CharacterBody2D *p_target) {
@@ -860,13 +868,13 @@ void NavigationAgent2D::_follow_player() {
 
 void NavigationAgent2D::_follow_pos(const Vector2 &pos) {
 	set_target_position(pos);
-	debug_path_dirty = true;
+	_sync_debug_path();
 }
 
 void NavigationAgent2D::_follow_reset() {
 	// Clear internal navigation path
 	navigation_result->set_path(Vector<Vector2>());
-	debug_path_dirty = true;
+	_sync_debug_path();
 
 	// Reset path navigation state
 	navigation_path_index = 0;
@@ -896,6 +904,14 @@ Vector2 NavigationAgent2D::_get_final_position() const {
 		return Vector2();
 	}
 	return navigation_path[navigation_path.size() - 1];
+}
+
+void NavigationAgent2D::_sync_debug_path() {
+	if (_is_debug_path) {
+		debug_path_dirty = true;
+	} else {
+		debug_path_dirty = false;
+	}
 }
 
 void NavigationAgent2D::set_velocity_forced(Vector2 p_velocity) {
